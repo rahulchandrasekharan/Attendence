@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Mentor login{% endblock %}
+{% block content %}
+<div class="card" style="max-width:420px;margin:2rem auto">
+  <h1>Mentor login</h1>
+  <form method="post" class="form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.as_p }}
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+  <p class="small muted" style="margin-top:1rem">New mentor? <a href="{% url 'mentor_signup' %}">Create an account</a></p>
+</div>
+{% endblock %}

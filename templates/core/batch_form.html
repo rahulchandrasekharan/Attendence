@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{% if batch.pk %}Edit batch{% else %}New batch{% endif %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px">
+  <h1>{% if batch.pk %}Edit {{ batch.name }}{% else %}New batch{% endif %}</h1>
+  <form method="post" class="form">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div class="field">{{ form.name.label_tag }}{{ form.name }}{{ form.name.errors }}</div>
+    <div class="grid grid-2" style="grid-template-columns:1fr 1fr">
+      <div class="field">{{ form.start_time.label_tag }}{{ form.start_time }}{{ form.start_time.errors }}</div>
+      <div class="field">{{ form.end_time.label_tag }}{{ form.end_time }}{{ form.end_time.errors }}</div>
+    </div>
+    <div class="field days"><label>Class days</label>{{ form.days }}{{ form.days.errors }}</div>
+    <div class="field"><label class="row">{{ form.is_active }} Active (students can sign up and punch in)</label></div>
+    {% if batch.pk %}<p class="small muted">Changing the batch timing applies to every student in it, except students who have their own custom timing.</p>{% endif %}
+    <div class="row">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <a class="btn" href="{% if batch.pk %}{% url 'batch_detail' batch.pk %}{% else %}{% url 'dashboard' %}{% endif %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

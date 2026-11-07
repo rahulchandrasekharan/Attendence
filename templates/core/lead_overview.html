@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Team overview{% endblock %}
+{% block content %}
+<div class="row">
+  <div>
+    <h1 style="margin:0">Team overview</h1>
+    <div class="muted">{{ today|date:"l, d F Y" }} · all trainers' students · last {{ f.days }} days</div>
+  </div>
+  <div class="spacer"></div>
+  <a class="btn btn-primary" href="{% url 'lead_export' %}{% if query %}?{{ query }}{% endif %}">⬇ Export report (Excel)</a>
+</div>
+
+<form method="get" class="card form row" style="margin-top:1rem;align-items:flex-end">
+  <div class="field" style="margin:0;min-width:180px">
+    <label for="trainer">Trainer</label>
+    <select name="trainer" id="trainer" onchange="this.form.batch.value='';this.form.submit()">
+      <option value="">All trainers</option>
+      {% for t in trainers %}<option value="{{ t.id }}"{% if f.trainer == t.id|stringformat:"s" %} selected{% endif %}>{{ t.get_full_name|default:t.username }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field" style="margin:0;min-width:200px">
+    <label for="batch">Batch</label>
+    <select name="batch" id="batch">
+      <option value="">All batches</option>
+      {% for b in batches %}<option value="{{ b.id }}"{% if f.batch == b.id|stringformat:"s" %} selected{% endif %}>{{ b.name }} · {{ b.mentor.get_full_name|default:b.mentor.username }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="field" style="margin:0">
+    <label for="risk">Risk</label>
+    <select name="risk" id="risk">
+      <option value="">Any</option>
+      <option value="high"{% if f.risk == "high" %} selected{% endif %}>High</option>
+      <option value="medium"{% if f.risk == "medium" %} selected{% endif %}>Medium</option>
+      <option value="low"{% if f.risk == "low" %} selected{% endif %}>Low</option>
+    </select>
+  </div>
+  <div class="field" style="margin:0">
+    <label for="days">Period</label>
+    <select name="days" id="days">
+      <option value="7"{% if f.days == 7 %} selected{% endif %}>Last 7 days</option>
+      <option value="30"{% if f.days == 30 %} selected{% endif %}>Last 30 days</option>
+      <option value="90"{% if f.days == 90 %} selected{% endif %}>Last 90 days</option>
+    </select>
+  </div>
+  <div class="field" style="margin:0;flex:1;min-width:160px">
+    <label for="q">Search student</label>
+    <input type="text" name="q" id="q" value="{{ f.q }}" placeholder="Name or ID">
+  </div>
+  <button class="btn btn-primary" type="submit">Apply</button>
+  <a class="btn" href="{% url 'lead_overview' %}">Reset</a>
+</form>
+
+<h2 style="margin-top:1.5rem">Trainers</h2>
+<div class="grid grid-3">
+  {% for c in summary %}
+    <a class="card tile" href="?trainer={{ c.trainer.id }}&days={{ f.days }}">
+      <h2 style="margin:0">{{ c.trainer.get_full_name|default:c.trainer.username }}</h2>
+      <div class="muted small">{{ c.batches }} batch{{ c.batches|pluralize:"es" }} · {{ c.students }} student{{ c.students|pluralize }}</div>
+      <div class="stats">
+        <div class="stat"><div class="num">{% if c.avg is not None %}{{ c.avg }}%{% else %}–{% endif %}</div><div class="lbl">Avg attendance</div></div>
+        <div class="stat ok"><div class="num">{{ c.P }}</div><div class="lbl">Present today</div></div>
+        <div class="stat warn"><div class="num">{{ c.L }}</div><div class="lbl">Late</div></div>
+        <div class="stat bad"><div class="num">{{ c.A }}</div><div class="lbl">Absent</div></div>
+        <div class="stat bad"><div class="num">{{ c.high }}</div><div class="lbl">High risk</div></div>
+      </div>
+    </a>
+  {% empty %}
+    <p class="muted">No students match these filters.</p>
+  {% endfor %}
+</div>
+
+<h2 style="margin-top:1.5rem">Student report <span class="muted small">({{ stats|length }})</span></h2>
+{% if stats %}
+<div class="table-wrap">
+  <table>
+    <thead><tr>
+      <th>Trainer</th><th>Batch</th><th>Student</th><th>Timing</th><th>Today</th>
+      <th>Attendance</th><th>Late</th><th>Avg arrival</th><th>Trend</th><th>Risk</th>
+    </tr></thead>
+    <tbody>
+    {% for s in stats %}{% with st=s.student %}
+      <tr>
+        <td>{{ st.batch.mentor.get_full_name|default:st.batch.mentor.username }}</td>
+        <td><a href="{% url 'batch_detail' st.batch_id %}">{{ st.batch.name }}</a></td>
+        <td>{{ st.full_name }} <span class="muted small">{{ st.student_id }}</span></td>
+        <td>{{ st.start_time|time:"h:i A" }}–{{ st.end_time|time:"h:i A" }}{% if st.has_custom_timing %} <span class="badge warn">custom</span>{% endif %}</td>
+        <td>
+          {% if s.today == "P" %}<span class="badge ok">Present</span>
+          {% elif s.today == "L" %}<span class="badge warn">Late</span>
+          {% elif s.today == "A" %}<span class="badge bad">Absent</span>
+          {% elif s.today == "-" %}<span class="badge">No class</span>
+          {% else %}<span class="badge">Not yet</span>{% endif %}
+        </td>
+        <td>{% if s.percent is not None %}<span class="bar"><i class="{% if s.percent >= 75 %}hi{% elif s.percent >= 60 %}mid{% else %}lo{% endif %}" style="--w:{{ s.percent|stringformat:'.0f' }}%"></i></span><b>{{ s.percent }}%</b> <span class="small muted">({{ s.attended }}/{{ s.scheduled }})</span>{% else %}–{% endif %}</td>
+        <td>{{ s.late }}</td>
+        <td>{% if s.avg_delay is not None %}{% if s.avg_delay > 0 %}+{% endif %}{{ s.avg_delay }} min{% else %}–{% endif %}</td>
+        <td>{% if s.trend is not None %}{% if s.trend > 0 %}▲ +{% elif s.trend < 0 %}▼ {% endif %}{{ s.trend }}%{% else %}–{% endif %}</td>
+        <td><span class="badge {% if s.risk == 'high' %}bad{% elif s.risk == 'medium' %}warn{% else %}ok{% endif %}">{{ s.risk }}</span></td>
+      </tr>
+    {% endwith %}{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}<p class="muted">No students match these filters.</p>{% endif %}
+{% endblock %}

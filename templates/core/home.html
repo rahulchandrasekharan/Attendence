@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Face recognition attendance for training batches</h1>
+  <p class="muted">{{ now|date:"l, d F Y" }} · Students punch in with their face, and attendance is written to each batch's Excel register.</p>
+</section>
+<div class="tiles">
+  <a class="card tile" href="{% url 'punch' %}">
+    <div class="icon">📷</div>
+    <h2>Punch in</h2>
+    <p class="muted">Look at the camera to mark today's attendance. It works only during your batch time.</p>
+  </a>
+  <a class="card tile" href="{% url 'student_signup' %}">
+    <div class="icon">🧑‍🎓</div>
+    <h2>Student sign up</h2>
+    <p class="muted">Enter your details, choose your batch and take 3 or more photos of your face.</p>
+  </a>
+  <a class="card tile" href="{% if user.is_authenticated %}{% url 'dashboard' %}{% else %}{% url 'login' %}{% endif %}">
+    <div class="icon">📊</div>
+    <h2>Mentor dashboard</h2>
+    <p class="muted">Manage batches, change student timings, view registers and analytics.</p>
+  </a>
+</div>
+{% endblock %}

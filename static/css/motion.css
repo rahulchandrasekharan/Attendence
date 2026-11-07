@@ -1,0 +1,194 @@
+/* =====================================================================
+   Motion layer: ambient background, entrance animations, hover physics,
+   camera scanner and punch feedback. Turned off for prefers-reduced-motion.
+   ===================================================================== */
+:root {
+  --brand-2: #7048e8;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* Ambient drifting colour blobs behind everything */
+body { position: relative; overflow-x: hidden; }
+body::before, body::after {
+  content: ""; position: fixed; z-index: -1; border-radius: 50%; filter: blur(70px); opacity: .35; pointer-events: none;
+}
+body::before {
+  width: 520px; height: 520px; top: -160px; left: -140px;
+  background: radial-gradient(circle, #91a7ff, transparent 70%);
+  animation: drift-a 22s ease-in-out infinite alternate;
+}
+body::after {
+  width: 480px; height: 480px; bottom: -180px; right: -120px;
+  background: radial-gradient(circle, #b197fc, transparent 70%);
+  animation: drift-b 26s ease-in-out infinite alternate;
+}
+@keyframes drift-a { to { transform: translate(180px, 140px) scale(1.15); } }
+@keyframes drift-b { to { transform: translate(-200px, -120px) scale(1.1); } }
+
+/* Glassy sticky top bar with an animated underline on nav links */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(255, 255, 255, .78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  animation: slide-down .6s var(--ease-out) both;
+}
+.topbar .logo { display: inline-flex; align-items: center; }
+.topbar .logo::before {
+  content: ""; width: 10px; height: 10px; border-radius: 50%; margin-right: .45rem;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  animation: pulse-dot 2.4s infinite;
+}
+.topbar nav a { position: relative; }
+.topbar nav a::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
+  transform: scaleX(0); transform-origin: left; transition: transform .35s var(--ease-out);
+}
+.topbar nav a:hover { text-decoration: none; }
+.topbar nav a:hover::after { transform: scaleX(1); }
+@keyframes slide-down { from { transform: translateY(-100%); opacity: 0; } }
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(59, 91, 219, .55); }
+  70% { box-shadow: 0 0 0 10px rgba(59, 91, 219, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 91, 219, 0); }
+}
+
+/* Staggered entrance: motion.js sets --i on each element and adds .in when it scrolls into view */
+.js .reveal { opacity: 0; transform: translateY(18px) scale(.985); }
+.js tr.reveal { transform: translateX(-12px); }
+.js .reveal.in {
+  opacity: 1; transform: none;
+  transition: opacity .6s var(--ease-out), transform .7s var(--ease-out);
+  transition-delay: calc(var(--i, 0) * 60ms);
+}
+.container > h1, .container > p.muted, .container > .row, .hero > * { animation: fade-up .7s var(--ease-out) both; }
+.hero > *:nth-child(2) { animation-delay: .12s; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(14px); } }
+
+/* Cards & tiles: lift, glow and a light sweep on hover */
+.card { transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out), border-color .35s; }
+.tile { position: relative; overflow: hidden; }
+.tile:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 34px rgba(59, 91, 219, .16), 0 2px 6px rgba(20, 30, 60, .06);
+}
+.tile::after {
+  content: ""; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, .75), transparent);
+  transform: skewX(-18deg); pointer-events: none;
+}
+.tile:hover::after { animation: sweep .9s var(--ease-out); }
+.tile .icon { display: inline-block; transition: transform .5s var(--ease-spring); }
+.tile:hover .icon { transform: translateY(-4px) rotate(-8deg) scale(1.18); }
+@keyframes sweep { to { left: 130%; } }
+
+/* Hero headline with a slowly moving gradient */
+.hero h1 {
+  background: linear-gradient(90deg, var(--ink) 0%, var(--brand) 35%, var(--brand-2) 55%, var(--ink) 90%);
+  background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: fade-up .7s var(--ease-out) both, shimmer-text 8s linear infinite;
+}
+@keyframes shimmer-text { to { background-position: -250% 0; } }
+
+/* Buttons: gradient primary, press feedback and click ripple */
+.btn { position: relative; overflow: hidden; transition: transform .2s var(--ease-out), box-shadow .25s, border-color .2s; }
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(1px) scale(.98); }
+.btn-primary {
+  background: linear-gradient(120deg, var(--brand), var(--brand-2), var(--brand));
+  background-size: 200% 100%; border-color: transparent;
+  box-shadow: 0 4px 14px rgba(59, 91, 219, .3);
+  transition: background-position .6s var(--ease-out), transform .2s var(--ease-out), box-shadow .25s;
+}
+.btn-primary:hover { background-position: 100% 0; box-shadow: 0 8px 22px rgba(112, 72, 232, .35); filter: none; }
+.ripple {
+  position: absolute; border-radius: 50%; background: rgba(255, 255, 255, .55);
+  transform: scale(0); animation: ripple .6s ease-out forwards; pointer-events: none;
+}
+.btn:not(.btn-primary) .ripple { background: rgba(59, 91, 219, .18); }
+@keyframes ripple { to { transform: scale(4); opacity: 0; } }
+
+/* Form fields glow on focus */
+.form input, .form select { transition: border-color .25s, box-shadow .25s; }
+.form input:focus, .form select:focus { outline: none; box-shadow: 0 0 0 4px rgba(59, 91, 219, .15); }
+
+/* Flash messages slide in, then fade away */
+.messages li { animation: msg-in .5s var(--ease-spring) both; }
+.messages li.out { animation: msg-out .5s ease forwards; }
+@keyframes msg-in { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes msg-out { to { opacity: 0; transform: translateX(24px); } }
+
+/* Stats count up; high-risk badges pulse */
+.stat .num { font-variant-numeric: tabular-nums; }
+.badge.bad { animation: badge-pulse 1.8s ease-in-out infinite; }
+@keyframes badge-pulse { 50% { box-shadow: 0 0 0 4px rgba(201, 42, 42, .14); } }
+
+/* Animated attendance bars */
+.bar { display: inline-block; vertical-align: middle; width: 64px; height: 6px; border-radius: 6px; background: var(--off-bg); overflow: hidden; margin-right: .4rem; }
+.bar i { display: block; height: 100%; width: 0; border-radius: inherit; transition: width 1.2s var(--ease-out); }
+.bar.go i { width: var(--w); }
+.bar i.hi { background: linear-gradient(90deg, #8ce99a, #2f9e44); }
+.bar i.mid { background: linear-gradient(90deg, #ffe066, #f59f00); }
+.bar i.lo { background: linear-gradient(90deg, #ffa8a8, #e03131); }
+
+/* Register cells pop in */
+td.P, td.L, td.A { animation: cell-pop .45s var(--ease-spring) both; }
+@keyframes cell-pop { from { transform: scale(.4); opacity: 0; } }
+
+/* Camera: breathing guide oval, scan line, corner brackets, shutter flash */
+.cam .guide { animation: breathe 3s ease-in-out infinite; }
+@keyframes breathe { 50% { transform: scale(1.04); border-color: rgba(145, 167, 255, .95); } }
+.cam::before {
+  content: ""; position: absolute; left: 0; right: 0; height: 3px; top: 4%; z-index: 2; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #74c0fc, #b197fc, transparent);
+  box-shadow: 0 0 18px 4px rgba(116, 192, 252, .55); opacity: .85;
+  animation: scan 3.2s ease-in-out infinite;
+}
+.cam.scanning::before { animation-duration: .8s; }
+.cam.scanning .guide { border-color: #74c0fc; border-style: solid; animation-duration: .7s; }
+@keyframes scan { 0%, 100% { top: 4%; } 50% { top: 94%; } }
+.cam::after {
+  content: ""; position: absolute; inset: 12px; pointer-events: none; z-index: 2; opacity: .85;
+  background:
+    linear-gradient(#fff, #fff) top left / 26px 3px no-repeat, linear-gradient(#fff, #fff) top left / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) top right / 26px 3px no-repeat, linear-gradient(#fff, #fff) top right / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) bottom left / 26px 3px no-repeat, linear-gradient(#fff, #fff) bottom left / 3px 26px no-repeat,
+    linear-gradient(#fff, #fff) bottom right / 26px 3px no-repeat, linear-gradient(#fff, #fff) bottom right / 3px 26px no-repeat;
+}
+.cam .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 3; }
+.cam .flash.go { animation: flash .45s ease-out; }
+@keyframes flash { 10% { opacity: .75; } }
+.cam .overlay { z-index: 4; }
+
+/* Punch button heartbeat */
+#punchBtn:not(:disabled) { animation: heartbeat 2.6s ease-in-out infinite; }
+@keyframes heartbeat {
+  0%, 100% { box-shadow: 0 4px 14px rgba(59, 91, 219, .3); }
+  50% { box-shadow: 0 0 0 10px rgba(112, 72, 232, .12), 0 4px 14px rgba(59, 91, 219, .3); }
+}
+
+/* Punch result: pop for success, shake for problems, drawn check mark */
+.result { transition: background-color .4s, border-color .4s; }
+.result.pop { animation: pop-in .55s var(--ease-spring); }
+.result.shake { animation: shake .5s; }
+@keyframes pop-in { from { transform: scale(.88); opacity: .3; } }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.check { width: 64px; height: 64px; float: right; margin-left: .75rem; }
+.check circle { stroke: var(--ok); stroke-width: 4; fill: none; stroke-dasharray: 190; stroke-dashoffset: 190; animation: draw .6s var(--ease-out) forwards; }
+.check path { stroke: var(--ok); stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 50; stroke-dashoffset: 50; animation: draw .4s .45s var(--ease-out) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+.confetti { position: fixed; width: 9px; height: 14px; border-radius: 2px; pointer-events: none; z-index: 50; animation: confetti 1.4s cubic-bezier(.2, .6, .4, 1) forwards; }
+@keyframes confetti { to { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; } }
+
+/* Clock colon blink */
+.clock .colon { animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* Sign-up thumbnails pop in */
+.thumbs .t { animation: pop-in .45s var(--ease-spring); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .js .reveal { opacity: 1; transform: none; }
+  .bar i { width: var(--w); }
+}

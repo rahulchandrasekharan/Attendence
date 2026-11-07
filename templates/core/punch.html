@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Punch in{% endblock %}
+{% block content %}
+{% csrf_token %}
+<div class="kiosk">
+  <div>
+    <div class="cam" id="cam">
+      <video id="video" playsinline muted></video>
+      <div class="guide"></div>
+      <div class="flash" id="flash"></div>
+      <div class="overlay" id="overlay">Starting camera…</div>
+    </div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn btn-primary btn-lg" id="punchBtn" disabled>📷 Punch in</button>
+      <label class="row small"><input type="checkbox" id="auto"> Auto mode (kiosk: scans every few seconds)</label>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <div class="muted">{{ now|date:"l, d F Y" }}</div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+    <div class="result" id="result">
+      <div class="big">Look at the camera and press <b>Punch in</b> (or the space bar).</div>
+      <p class="muted small">Keep your face inside the oval. Only one person should be in the frame.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const video = document.getElementById("video");
+const btn = document.getElementById("punchBtn");
+const result = document.getElementById("result");
+const auto = document.getElementById("auto");
+const csrf = document.querySelector("[name=csrfmiddlewaretoken]").value;
+let busy = false, pauseUntil = 0;
+
+function tick() {
+  const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  document.getElementById("clock").innerHTML = esc(t).replace(/:/g, '<span class="colon">:</span>');
+}
+setInterval(tick, 1000); tick();
+
+Camera.start(video, document.getElementById("overlay")).then(ok => { btn.disabled = !ok; });
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+
+const CHECK = '<svg class="check" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="29"/><path d="M19 33l9 9 17-19"/></svg>';
+
+function show(data) {
+  const kind = data.kind || "error";
+  result.className = "result " + kind;
+  void result.offsetWidth;  // restart the animation
+  result.classList.add(["marked", "duplicate"].includes(kind) ? "pop" : "shake");
+  let html = kind === "marked" ? CHECK : "";
+  if (data.student) {
+    html += `<div class="name">${esc(data.student.name)}</div>
+             <div class="muted">${esc(data.student.id)} · ${esc(data.student.batch)} · ${esc(data.student.timing)}</div>`;
+  }
+  html += `<div class="big">${esc(data.message)}</div>`;
+  if (data.status) html += `<span class="badge ${data.status === "Late" ? "warn" : "ok"}">${esc(data.status)} · ${esc(data.time_in)} · ${esc(data.date)}</span> `;
+  if (data.confidence !== undefined) html += `<span class="small muted">match score ${data.confidence}</span>`;
+  result.innerHTML = html;
+  if (kind === "marked") celebrate(result);
+}
+
+async function punch(fromAuto = false) {
+  if (busy || btn.disabled || Date.now() < pauseUntil) return;
+  busy = true; btn.textContent = "Checking…";
+  const cam = document.getElementById("cam"), flash = document.getElementById("flash");
+  cam.classList.add("scanning");
+  if (!fromAuto) { flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go"); }
+  try {
+    const res = await fetch("{% url 'api_punch' %}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
+      body: JSON.stringify({ image: Camera.snapshot(video) }),
+    });
+    const data = await res.json();
+    // In auto mode, stay quiet while nobody is in front of the camera.
+    if (!(fromAuto && data.kind === "noface")) show(data);
+    if (data.student) pauseUntil = Date.now() + 5000;
+  } catch (e) {
+    show({ kind: "error", message: "Server error: " + e.message });
+  } finally {
+    busy = false; btn.textContent = "📷 Punch in";
+    cam.classList.remove("scanning");
+  }
+}
+
+btn.addEventListener("click", () => punch());
+document.addEventListener("keydown", e => { if (e.code === "Space") { e.preventDefault(); punch(); } });
+setInterval(() => { if (auto.checked) punch(true); }, 2500);
+</script>
+{% endblock %}

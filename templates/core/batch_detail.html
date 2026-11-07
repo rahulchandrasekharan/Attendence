@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}{{ batch.name }}{% endblock %}
+{% block content %}
+<div class="row">
+  <div>
+    {% if can_edit %}<a class="small" href="{% url 'dashboard' %}">← Dashboard</a>
+    {% else %}<a class="small" href="{% url 'lead_overview' %}?trainer={{ batch.mentor_id }}">← Team overview</a>{% endif %}
+    <h1 style="margin:.2rem 0">{{ batch.name }} {% if not batch.is_active %}<span class="badge">inactive</span>{% endif %}</h1>
+    <div class="muted">{{ batch.start_time|time:"h:i A" }} – {{ batch.end_time|time:"h:i A" }} · {{ batch.day_labels }} · {{ students|length }} student{{ students|length|pluralize }}
+      · Trainer {{ batch.mentor.get_full_name|default:batch.mentor.username }}{% if not can_edit %} <span class="badge">view only</span>{% endif %}</div>
+  </div>
+  <div class="spacer"></div>
+  {% if can_edit %}
+  <a class="btn" href="{% url 'batch_edit' batch.pk %}">Edit batch / timing</a>
+  <form method="post" action="{% url 'batch_delete' batch.pk %}" onsubmit="return confirm('Delete this batch?')">{% csrf_token %}
+    <button class="btn btn-danger" type="submit">Delete</button>
+  </form>
+  {% endif %}
+</div>
+
+<!-- Students -->
+<section class="card" style="margin-top:1.25rem">
+  <h2>Students</h2>
+  {% if students %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>Name</th><th>ID</th><th>Timing</th><th>Contact</th><th>Today</th><th></th></tr></thead>
+      <tbody>
+      {% for s in students %}
+        <tr{% if not s.is_active %} class="muted"{% endif %}>
+          <td>{% with p=s.photos.first %}{% if p %}<img src="{{ p.image.url }}" alt="" style="width:36px;height:36px;object-fit:cover;border-radius:50%">{% endif %}{% endwith %}</td>
+          <td>{{ s.full_name }}{% if not s.is_active %} <span class="badge">inactive</span>{% endif %}</td>
+          <td>{{ s.student_id }}</td>
+          <td>{{ s.start_time|time:"h:i A" }} – {{ s.end_time|time:"h:i A" }}
+              {% if s.has_custom_timing %}<span class="badge warn" title="Custom timing for this student">custom</span>{% endif %}</td>
+          <td class="small">{{ s.phone }}{% if s.phone and s.email %}<br>{% endif %}{{ s.email }}</td>
+          <td>
+            {% if s.id in marked_today %}<span class="badge ok">marked</span>
+            {% elif s.is_active and can_edit %}
+              <form method="post" action="{% url 'manual_mark' s.pk %}" class="row" style="gap:.3rem">{% csrf_token %}
+                <button class="btn btn-sm" name="status" value="P" title="Mark present manually">✓ Present</button>
+                <button class="btn btn-sm" name="status" value="L" title="Mark late manually">Late</button>
+              </form>
+            {% endif %}
+          </td>
+          <td>{% if can_edit %}<a class="btn btn-sm" href="{% url 'student_edit' s.pk %}">Edit / timing</a>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p class="muted">No students yet. Share the <a href="{% url 'student_signup' %}">sign-up page</a>; students choose <b>{{ batch.name }}</b> there.</p>
+  {% endif %}
+</section>
+
+<!-- Register -->
+<section class="card" style="margin-top:1.25rem">
+  <div class="row">
+    <h2 style="margin:0">Attendance register · {{ month|date:"F Y" }}</h2>
+    <div class="spacer"></div>
+    <a class="btn btn-sm" href="?month={{ prev_month }}">← Prev</a>
+    <a class="btn btn-sm" href="?month={{ next_month }}">Next →</a>
+    <a class="btn btn-sm btn-primary" href="{% url 'download_register' batch.pk %}?month={{ month|date:'Y-m' }}">⬇ Excel</a>
+  </div>
+  <p class="small muted">P = Present · L = Late · A = Absent · grey = no class. The Excel file is also saved automatically to <code>attendance_files/{{ batch.mentor.username }}/</code> after each punch.</p>
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="register">
+      <thead><tr>
+        <th class="sticky">Student</th>
+        {% for d, t in dates %}<th class="d{% if t %} today{% endif %}">{{ d|date:"j" }}<br>{{ d|date:"D"|slice:":2" }}</th>{% endfor %}
+        <th>P</th><th>L</th><th>A</th><th>%</th>
+      </tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="sticky">{{ r.student.full_name }}{% if r.student.batch_id != batch.id %} <span class="badge" title="Moved to another batch">moved</span>{% endif %}</td>
+          {% for code, t in r.cells %}<td class="d {% if code == '-' %}off{% else %}{{ code }}{% endif %}{% if t %} today{% endif %}">{% if code != '-' %}{{ code }}{% endif %}</td>{% endfor %}
+          <td>{{ r.present }}</td><td>{{ r.late }}</td><td>{{ r.absent }}</td>
+          <td><b>{% if r.percent is not None %}{{ r.percent }}%{% else %}–{% endif %}</b></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}<p class="muted">No students in this batch for this month.</p>{% endif %}
+</section>
+
+<!-- Analytics -->
+<section class="grid grid-2" style="margin-top:1.25rem">
+  <div class="card">
+    <h2>Daily attendance (last 30 days)</h2>
+    <div style="position:relative;height:260px"><canvas id="trend"></canvas></div>
+    <p class="small muted" id="noTrend" hidden>Not enough class days yet.</p>
+  </div>
+  <div class="card">
+    <h2>Student insights (last 30 days)</h2>
+    <p class="small muted">The trend is a least-squares slope of each student's daily attendance, in % per week. Risk is high when attendance is below 60%, or when it is falling and below 85%.</p>
+    {% if stats %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Student</th><th>Attend.</th><th>Late</th><th>Avg arrival</th><th>Trend</th><th>Risk</th></tr></thead>
+        <tbody>
+        {% for s in stats %}
+          <tr>
+            <td>{{ s.student.full_name }}</td>
+            <td>{% if s.percent is not None %}<span class="bar"><i class="{% if s.percent >= 75 %}hi{% elif s.percent >= 60 %}mid{% else %}lo{% endif %}" style="--w:{{ s.percent|stringformat:'.0f' }}%"></i></span>{{ s.percent }}% <span class="small muted">({{ s.attended }}/{{ s.scheduled }})</span>{% else %}–{% endif %}</td>
+            <td>{{ s.late }}</td>
+            <td>{% if s.avg_delay is not None %}{% if s.avg_delay > 0 %}+{% endif %}{{ s.avg_delay }} min{% else %}–{% endif %}</td>
+            <td>{% if s.trend is not None %}{% if s.trend > 0 %}▲ +{% elif s.trend < 0 %}▼ {% endif %}{{ s.trend }}%{% else %}–{% endif %}</td>
+            <td><span class="badge {% if s.risk == 'high' %}bad{% elif s.risk == 'medium' %}warn{% else %}ok{% endif %}">{{ s.risk }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<p class="muted">No active students.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const data = {{ chart|safe }};
+if (!data.labels.length) {
+  document.getElementById("noTrend").hidden = false;
+} else if (window.Chart) {
+  new Chart(document.getElementById("trend"), {
+    type: "bar",
+    data: {
+      labels: data.labels,
+      datasets: [
+        { label: "Present", data: data.present, backgroundColor: "#51cf66" },
+        { label: "Late", data: data.late, backgroundColor: "#fcc419" },
+        { label: "Absent", data: data.absent, backgroundColor: "#ff8787" },
+      ],
+    },
+    options: {
+      maintainAspectRatio: false,
+      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
+      plugins: { legend: { position: "bottom" } },
+    },
+  });
+}
+</script>
+{% endblock %}

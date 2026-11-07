@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="row">
+  <div>
+    <h1>Hello, {{ user.first_name|default:user.username }}</h1>
+    <div class="muted">{{ now|date:"l, d F Y · h:i A" }}</div>
+  </div>
+  <div class="spacer"></div>
+  {% if is_team_lead %}<a class="btn" href="{% url 'lead_overview' %}">Team overview →</a>{% endif %}
+  <a class="btn btn-primary" href="{% url 'batch_create' %}">+ New batch</a>
+</div>
+
+<h2 style="margin-top:1.5rem">Today's batches</h2>
+<div class="grid grid-3">
+  {% for c in cards %}
+    <a class="card tile" href="{% url 'batch_detail' c.batch.pk %}">
+      <div class="row">
+        <h2 style="margin:0">{{ c.batch.name }}</h2>
+        <div class="spacer"></div>
+        {% if not c.batch.is_active %}<span class="badge">inactive</span>
+        {% elif c.runs_today %}<span class="badge ok">class today</span>
+        {% else %}<span class="badge">no class today</span>{% endif %}
+      </div>
+      <div class="muted">{{ c.batch.start_time|time:"h:i A" }} – {{ c.batch.end_time|time:"h:i A" }} · {{ c.batch.day_labels }}</div>
+      <div class="stats">
+        <div class="stat"><div class="num">{{ c.students }}</div><div class="lbl">Students</div></div>
+        <div class="stat ok"><div class="num">{{ c.present }}</div><div class="lbl">Present</div></div>
+        <div class="stat warn"><div class="num">{{ c.late }}</div><div class="lbl">Late</div></div>
+        <div class="stat bad"><div class="num">{{ c.absent }}</div><div class="lbl">Absent</div></div>
+        {% if c.pending %}<div class="stat"><div class="num">{{ c.pending }}</div><div class="lbl">Not yet</div></div>{% endif %}
+      </div>
+    </a>
+  {% empty %}
+    <div class="card">
+      <h2>No batches yet</h2>
+      <p class="muted">Create your batches (for example "Batch 1", 9:00–11:00). Students then pick a batch when they sign up.</p>
+      <a class="btn btn-primary" href="{% url 'batch_create' %}">Create first batch</a>
+    </div>
+  {% endfor %}
+</div>
+
+<h2 style="margin-top:1.75rem">Punches today</h2>
+{% if recent %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Time</th><th>Student</th><th>Batch</th><th>Status</th><th>Method</th><th>Match</th><th>Snapshot</th></tr></thead>
+    <tbody>
+    {% for a in recent %}
+      <tr>
+        <td>{{ a.time_in|time:"h:i A" }}</td>
+        <td>{{ a.student.full_name }} <span class="muted small">{{ a.student.student_id }}</span></td>
+        <td>{{ a.batch.name }}</td>
+        <td><span class="badge {% if a.status == 'L' %}warn{% else %}ok{% endif %}">{{ a.get_status_display }}</span></td>
+        <td>{{ a.get_method_display }}</td>
+        <td>{% if a.confidence %}{{ a.confidence|floatformat:2 }}{% else %}–{% endif %}</td>
+        <td>{% if a.snapshot %}<a href="{{ a.snapshot.url }}" target="_blank"><img src="{{ a.snapshot.url }}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:6px"></a>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">Nobody has punched in today yet.</p>
+{% endif %}
+{% endblock %}

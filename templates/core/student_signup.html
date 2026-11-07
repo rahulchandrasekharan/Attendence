@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Student sign up{% endblock %}
+{% block content %}
+<h1>Student sign up</h1>
+<p class="muted">Enter your details, choose your batch, then take at least {{ min_photos }} photos. Turn your head slightly between photos.</p>
+
+<form method="post" enctype="multipart/form-data" class="form" id="signupForm">
+  {% csrf_token %}
+  <div class="grid grid-2">
+    <div class="card">
+      {{ form.non_field_errors }}
+      {{ form.as_p }}
+      {% if not form.fields.batch.queryset.exists %}
+        <p class="errorlist">No batches exist yet. Ask your mentor to create one first.</p>
+      {% endif %}
+    </div>
+    <div class="card">
+      <div class="cam">
+        <video id="video" playsinline muted></video>
+        <div class="guide"></div>
+        <div class="overlay" id="overlay">Starting camera…</div>
+      </div>
+      <div class="row" style="margin-top:.75rem">
+        <button type="button" class="btn" id="captureBtn" disabled>📸 Capture photo</button>
+        <span class="small muted" id="count">0 / {{ min_photos }} photos</span>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+      <div id="hidden"></div>
+      <div class="field" style="margin-top:1rem">
+        <label for="uploads">…or upload photos instead</label>
+        <input type="file" id="uploads" name="uploads" accept="image/*" multiple>
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:1rem"><button class="btn btn-primary btn-lg" type="submit">Register</button></div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const video = document.getElementById("video");
+const cap = document.getElementById("captureBtn");
+const thumbs = document.getElementById("thumbs");
+const MIN = {{ min_photos }};
+let photos = [];
+
+Camera.start(video, document.getElementById("overlay")).then(ok => { cap.disabled = !ok; });
+
+function render() {
+  thumbs.innerHTML = "";
+  const hidden = document.getElementById("hidden");
+  hidden.innerHTML = "";
+  photos.forEach((src, i) => {
+    const t = document.createElement("div"); t.className = "t";
+    t.innerHTML = `<img src="${src}" alt="photo ${i + 1}"><button type="button" title="Remove">×</button>`;
+    t.querySelector("button").onclick = () => { photos.splice(i, 1); render(); };
+    thumbs.appendChild(t);
+    const inp = document.createElement("input");
+    inp.type = "hidden"; inp.name = "photo_" + i; inp.value = src;
+    hidden.appendChild(inp);
+  });
+  document.getElementById("count").textContent = `${photos.length} / ${MIN} photos`;
+}
+
+cap.onclick = () => { if (photos.length < 8) { photos.push(Camera.snapshot(video, 800)); render(); } };
+
+document.getElementById("signupForm").addEventListener("submit", e => {
+  const uploads = document.getElementById("uploads").files.length;
+  if (photos.length + uploads < MIN) {
+    e.preventDefault();
+    alert(`Please take or upload at least ${MIN} photos.`);
+  }
+});
+</script>
+{% endblock %}

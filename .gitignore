@@ -1,0 +1,15 @@
+# Python / virtualenv
+venv/
+__pycache__/
+*.pyc
+
+# Local data - contains student photos, face embeddings and passwords; never commit
+db.sqlite3
+media/
+attendance_files/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
